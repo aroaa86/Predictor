@@ -1,0 +1,76 @@
+<SerieA>:
+    MDFloatLayout:
+        orientation: 'vertical'
+        md_bg_color: .3, .3, 1, .07
+
+        MDTopAppBar:
+            title: 'Série A'
+            md_bg_color: .3, .8, 1, .6
+            elevation: 10
+            pos_hint: {'top': 1}
+            left_action_items: [['arrow-left', lambda x:root.set_screen()]]
+
+        Image:
+            source: 'C:/Users/Admin/OneDrive/Documentos/Backups projecto python/teste/telas/tela_principal/Serie_A.png'
+            pos_hint: {'center_x': .48, 'center_y': .83}
+            size_hint_x: .3
+            opacity: .85
+
+        MDSpinner:
+            id: spinner
+            size_hint: None, None
+            size: dp(46), dp(46)
+            pos_hint: {'center_x': .5, 'center_y': .5}
+            active: False # Começa inativo (invisível)
+
+    MDFillRoundFlatIconButton:
+        id: prever_button # id para desativação
+        text: 'Prever'
+        pos_hint: {'center_x': .26, 'center_y': .73}
+        icon: 'soccer'
+        on_release:
+            root.adicionar_widget()
+
+    MDFillRoundFlatIconButton:
+        text: 'Limpar'
+        pos_hint: {'center_x': .70, 'center_y': .73}
+        icon: 'soccer'
+        on_release:
+            root.remover_widget()
+
+    GridLayout:
+        cols: 2
+        size_hint: 1, .1
+        pos_hint: {'center_x': .54, 'center_y': .022}
+        Slider:
+            id: slider
+            min: 1
+            max: 20
+            value: 5
+            cursor_size: 30, 30
+            step: 1
+
+        Label:
+            text: str(int(slider.value)) + ' Jogos selecionados '
+            font_size: 15
+
+    MDCard:
+        id: card
+        elevation: 20
+        padding: '20dp'
+        md_bg_color: .3, .8, 1, .6
+        size_hint_x: .9
+        size_hint_y: .65
+        pos_hint: {'center_x': .5, 'center_y': .37}
+        opacity: .8
+        radius: [20]
+
+        ScrollView:
+            bar_color: 0, 0, 0, 1
+            BoxLayout:
+                id: box
+                orientation: 'vertical'
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: 35
+                padding: [15]

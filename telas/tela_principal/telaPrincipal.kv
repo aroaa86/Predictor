@@ -1,0 +1,133 @@
+<TelaPrincipal>
+    name: 'ligas'
+    MDFloatLayout:
+        canvas:
+            Color:
+                rgba: 1, 1, 1, 1
+            Rectangle:
+                source: 'C:/Users/Admin/OneDrive/Documentos/Backups projecto python/teste/telas/tela_principal/principal.jpg'
+                size: self.size
+                pos: self.pos
+        orientation: 'vertical'
+        md_bg_color: .3, .3, 1, .07
+
+        MDTopAppBar:
+            title: 'Oráculo'
+            md_bg_color: .3, .8, 1, .6
+            elevation: 10
+            pos_hint: {'top': 1}
+            right_action_items: [['logout', lambda x:root.sair()]]
+
+        Image:
+            source: 'C:/Users/Admin/OneDrive/Documentos/Backups projecto python/teste/telas/tela_principal/baliza.jpg'
+            pos_hint: {'center_x': .5, 'center_y': .75}
+
+        MDLabel:
+            text: 'Faça a sua previsão'
+            font_name: 'gothic'
+            font_size: 25
+            halign: 'center'
+            pos_hint: {'center_x': .5, 'center_y': .60}
+
+        MDFloatLayout:
+
+            MDFillRoundFlatIconButton:
+                text: 'Premier league'
+                pos_hint: {'center_x': .28, 'center_y':.50}
+                size_hint_x: .41
+                size_hint_y: .06
+                font_size: 18
+                text_size: self.size
+                halign: 'left'
+                opacity: .7
+                icon: 'soccer'
+                icon_color: "cyan"
+                on_release:
+                    root.manager.current = 'inglaterra'
+                    root.manager.transition.direction = 'left'
+
+            MDFillRoundFlatIconButton:
+                text: 'La liga'
+                pos_hint: {'center_x': .72, 'center_y': .50}
+                size_hint_x: .4
+                size_hint_y: .06
+                font_size: 18
+                text_size: self.size
+                halign: 'left'
+                opacity: .7
+                icon: 'soccer'
+                icon_color: "cyan"
+                on_release:
+                    root.manager.current = 'espanha'
+                    root.manager.transition.direction = 'left'
+
+            MDFillRoundFlatIconButton:
+                text: 'Serie A'
+                pos_hint: {'center_x': .28, 'center_y': .40}
+                size_hint_x: .4
+                size_hint_y: .06
+                font_size: 18
+                text_size: self.size
+                halign: 'left'
+                opacity: .7
+                icon: 'soccer'
+                icon_color: "cyan"
+                on_release:
+                    root.manager.current = 'italia'
+                    root.manager.transition.direction = 'left'
+
+            MDFillRoundFlatIconButton:
+                text: 'Bundesliga'
+                pos_hint: {'center_x': .72, 'center_y': .40}
+                size_hint_x: .4
+                size_hint_y: .06
+                font_size: 18
+                text_size: self.size
+                halign: 'left'
+                opacity: .7
+                icon: 'soccer'
+                icon_color: "cyan"
+                on_release:
+                    root.manager.current = 'alemanha'
+                    root.manager.transition.direction = 'left'
+
+            MDFillRoundFlatIconButton:
+                text: 'Ligue 1'
+                pos_hint: {'center_x': .28, 'center_y': .30}
+                size_hint_x: .4
+                size_hint_y: .06
+                font_size: 18
+                text_size: self.size
+                halign: 'left'
+                opacity: .7
+                icon: 'soccer'
+                icon_color: "cyan"
+                on_release:
+                    root.manager.current = 'frança'
+                    root.manager.transition.direction = 'left'
+
+            MDFillRoundFlatIconButton:
+                text: 'Outras ligas'
+                pos_hint: {'center_x': .72, 'center_y': .30}
+                size_hint_x: .4
+                size_hint_y: .06
+                font_size: 18
+                text_size: self.size
+                halign: 'left'
+                opacity: .7
+                icon: 'soccer'
+                icon_color: "cyan"
+                on_release:
+                    # root.manager.current = 'outras'
+                    # root.manager.transition.direction = 'left'
+                    root.info()
+
+            MDFillRoundFlatIconButton:
+                text: 'SAIR'
+                font_size: 22
+                icon: 'door'
+                pos_hint: {'center_x': .500, 'center_y': .15}
+                opacity: .7
+                size_hint_x: .85
+                size_hint_y: .06
+                on_release: app.stop()

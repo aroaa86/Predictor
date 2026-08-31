@@ -1,0 +1,156 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            build-essential \
+            git \
+            zip \
+            unzip \
+            openjdk-17-jdk \
+            autoconf \
+            automake \
+            libtool \
+            libtool-bin \
+            pkg-config \
+            libffi-dev \
+            libssl-dev \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            cmake \
+            ccache
+
+          echo "===== VERIFICAÇÃO DAS FERRAMENTAS ====="
+          python --version
+          autoconf --version
+          automake --version
+          libtool --version
+          java -version
+
+      - name: Set JAVA_HOME to Java 17
+        run: |
+          echo "JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64" >> $GITHUB_ENV
+          export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
+          echo "Java version:"
+          $JAVA_HOME/bin/java -version
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+
+          python -m pip install \
+            "buildozer==1.5.0" \
+            "cython==0.29.37" \
+            "kivy==2.3.1" \
+            "kivymd==2.0.0" \
+            "materialyoucolor==3.0.4" \
+            "materialshapes==0.3" \
+            "asynckivy==0.6.4" \
+            "asyncgui==0.6.3"
+
+      - name: Verify Buildozer
+        run: |
+          python --version
+          python -m pip --version
+          buildozer --version
+          cython --version
+
+      - name: Configure Android SDK environment
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
+          if [ -z "$ANDROID_HOME" ]; then
+            echo "ANDROID_HOME não está definido."
+            exit 1
+          fi
+
+          if [ -d "$ANDROID_HOME/cmdline-tools/latest/bin" ]; then
+            echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          fi
+
+          if [ -d "$ANDROID_HOME/cmdline-tools/bin" ]; then
+            echo "$ANDROID_HOME/cmdline-tools/bin" >> "$GITHUB_PATH"
+          fi
+
+          if [ -d "$ANDROID_HOME/platform-tools" ]; then
+            echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          fi
+
+          if [ -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
+            echo "$ANDROID_HOME/build-tools/35.0.0" >> "$GITHUB_PATH"
+          fi
+
+      - name: Locate Android SDK tools
+        shell: bash
+        run: |
+          echo "===== PROCURANDO SDKMANAGER ====="
+
+          SDKMANAGER=""
+
+          for candidate in \
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "$ANDROID_HOME/cmdline-tools/bin/sdkmanager" \
+            "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
+            "$ANDROID_SDK_ROOT/cmdline-tools/bin/sdkmanager"
+          do
+            if [ -f "$candidate" ]; then
+              SDKMANAGER="$candidate"
+              break
+            fi
+          done
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager não encontrado diretamente."
+            echo "Procurando no Android SDK..."
+            SDKMANAGER=$(find "$ANDROID_HOME" -type f -name sdkmanager 2>/dev/null | head -n 1)
+          fi
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "ERRO: sdkmanager não foi encontrado."
+            exit 1
+          fi
+
+          echo "sdkmanager encontrado:"
+          echo "$SDKMANAGER"
+
+          SDKMANAGER_DIR="$(dirname "$SDKMANAGER")"
+          echo "$SDKMANAGER_DIR" >> "$GITHUB_PATH"
+
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+          "$SDKMANAGER" --version
+
+      - name: Build APK
+        shell: bash
+        run: |
+          buildozer -v android debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GestorDeVoo-APK
+          path: bin/*.apk
+          if-no-files-found: error
