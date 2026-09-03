@@ -68,6 +68,7 @@ jobs:
             "materialyoucolor==3.0.4" \
             "materialshapes==0.3" \
             "asynckivy==0.6.4" \
+            "pyjnius==1.7.0" \
             "asyncgui==0.6.3"
 
       - name: Verify Buildozer

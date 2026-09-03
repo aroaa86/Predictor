@@ -48,51 +48,267 @@ except Exception as erro:
 # ==========================================================
 
 def get_team_form(team_name, all_matches_df, current_match_date, window=5):
-    team_matches = all_matches_df[((all_matches_df['Home'] == team_name) | (all_matches_df['Away'] == team_name)) & (all_matches_df['Date'] < current_match_date)].sort_values('Date').tail(window)
-    if len(team_matches) < window:
-        return {'avg_goals_scored': 1.0, 'avg_goals_conceded': 1.0, 'points': window * 1.0}
+    team_matches = all_matches_df[((all_matches_df['Home'] == team_name) | (all_matches_df['Away'] == team_name)) & (all_matches_df['Date'] < current_match_date) & (all_matches_df['Score'].notna())].sort_values('Date').tail(window)
+
+    if team_matches.empty:
+        return {
+            'avg_goals_scored': 1.0,
+            'avg_goals_conceded': 1.0,
+            'points': window * 1.0,
+            'wins': 0,
+            'draws': 0,
+            'losses': 0,
+            'points_per_game': 1.0,
+            'goal_diff_avg': 0.0
+        }
+
     goals_scored = 0
     goals_conceded = 0
     points = 0
+    wins = 0
+    draws = 0
+    losses = 0
+    jogos_validos = 0
+
     for _, row in team_matches.iterrows():
         try:
             home_goals, away_goals = map(int, str(row['Score']).replace('–', '-').split('-'))
         except (ValueError, TypeError):
             continue
+
+        jogos_validos += 1
+
         if row['Home'] == team_name:
             goals_scored += home_goals
             goals_conceded += away_goals
             if home_goals > away_goals:
                 points += 3
+                wins += 1
             elif home_goals == away_goals:
                 points += 1
+                draws += 1
+            else:
+                losses += 1
         else:
             goals_scored += away_goals
             goals_conceded += home_goals
             if away_goals > home_goals:
                 points += 3
+                wins += 1
             elif away_goals == home_goals:
                 points += 1
-    num_games = len(team_matches)
-    return {'avg_goals_scored': goals_scored / num_games, 'avg_goals_conceded': goals_conceded / num_games, 'points': points}
+                draws += 1
+            else:
+                losses += 1
+
+    if jogos_validos == 0:
+        return {
+            'avg_goals_scored': 1.0,
+            'avg_goals_conceded': 1.0,
+            'points': window * 1.0,
+            'wins': 0,
+            'draws': 0,
+            'losses': 0,
+            'points_per_game': 1.0,
+            'goal_diff_avg': 0.0
+        }
+
+    goal_diff = goals_scored - goals_conceded
+
+    return {
+        'avg_goals_scored': goals_scored / jogos_validos,
+        'avg_goals_conceded': goals_conceded / jogos_validos,
+        'points': points,
+        'wins': wins,
+        'draws': draws,
+        'losses': losses,
+        'points_per_game': points / jogos_validos,
+        'goal_diff_avg': goal_diff / jogos_validos
+    }
+
+# ==========================================================
+# ESTATÍSTICAS ATÉ AO JOGO ANTERIOR
+# ==========================================================
+
+def get_team_stats(team_name, matches_before):
+    team_matches = matches_before[((matches_before['Home'] == team_name) | (matches_before['Away'] == team_name)) & (matches_before['Score'].notna())]
+
+    if team_matches.empty:
+        return {
+            'MP': 0,
+            'W': 0,
+            'D': 0,
+            'L': 0,
+            'GF': 0,
+            'GA': 0,
+            'GD': 0,
+            'Pts': 0,
+            'Pts/MP': 0,
+            'GF/MP': 0,
+            'GA/MP': 0,
+            'WinRate': 0,
+            'DrawRate': 0
+        }
+
+    mp = 0
+    wins = 0
+    draws = 0
+    losses = 0
+    gf = 0
+    ga = 0
+    pts = 0
+
+    for _, row in team_matches.iterrows():
+        try:
+            home_goals, away_goals = map(int, str(row['Score']).replace('–', '-').split('-'))
+        except (ValueError, TypeError):
+            continue
+
+        if row['Home'] == team_name:
+            mp += 1
+            gf += home_goals
+            ga += away_goals
+
+            if home_goals > away_goals:
+                wins += 1
+                pts += 3
+            elif home_goals == away_goals:
+                draws += 1
+                pts += 1
+            else:
+                losses += 1
+
+        elif row['Away'] == team_name:
+            mp += 1
+            gf += away_goals
+            ga += home_goals
+
+            if away_goals > home_goals:
+                wins += 1
+                pts += 3
+            elif away_goals == home_goals:
+                draws += 1
+                pts += 1
+            else:
+                losses += 1
+
+    gd = gf - ga
+    pts_mp = pts / mp if mp > 0 else 0
+    gf_mp = gf / mp if mp > 0 else 0
+    ga_mp = ga / mp if mp > 0 else 0
+    win_rate = wins / mp if mp > 0 else 0
+    draw_rate = draws / mp if mp > 0 else 0
+
+    return {
+        'MP': mp,
+        'W': wins,
+        'D': draws,
+        'L': losses,
+        'GF': gf,
+        'GA': ga,
+        'GD': gd,
+        'Pts': pts,
+        'Pts/MP': pts_mp,
+        'GF/MP': gf_mp,
+        'GA/MP': ga_mp,
+        'WinRate': win_rate,
+        'DrawRate': draw_rate
+    }
+
+# ==========================================================
+# ESTATÍSTICAS CASA/FORA
+# ==========================================================
+
+def get_home_away_stats(team_name, matches_before, home=True):
+    if home:
+        team_matches = matches_before[(matches_before['Home'] == team_name) & (matches_before['Score'].notna())]
+    else:
+        team_matches = matches_before[(matches_before['Away'] == team_name) & (matches_before['Score'].notna())]
+
+    if team_matches.empty:
+        return {
+            'MP': 0,
+            'W': 0,
+            'D': 0,
+            'L': 0,
+            'GF': 0,
+            'GA': 0,
+            'GD': 0,
+            'Pts': 0,
+            'Pts/MP': 0,
+            'GF/MP': 0,
+            'GA/MP': 0,
+            'WinRate': 0
+        }
+
+    mp = 0
+    wins = 0
+    draws = 0
+    losses = 0
+    gf = 0
+    ga = 0
+    pts = 0
+
+    for _, row in team_matches.iterrows():
+        try:
+            home_goals, away_goals = map(int, str(row['Score']).replace('–', '-').split('-'))
+        except (ValueError, TypeError):
+            continue
+
+        mp += 1
+
+        if home:
+            gf += home_goals
+            ga += away_goals
+
+            if home_goals > away_goals:
+                wins += 1
+                pts += 3
+            elif home_goals == away_goals:
+                draws += 1
+                pts += 1
+            else:
+                losses += 1
+        else:
+            gf += away_goals
+            ga += home_goals
+
+            if away_goals > home_goals:
+                wins += 1
+                pts += 3
+            elif away_goals == home_goals:
+                draws += 1
+                pts += 1
+            else:
+                losses += 1
+
+    gd = gf - ga
+    pts_mp = pts / mp if mp > 0 else 0
+    gf_mp = gf / mp if mp > 0 else 0
+    ga_mp = ga / mp if mp > 0 else 0
+    win_rate = wins / mp if mp > 0 else 0
+
+    return {
+        'MP': mp,
+        'W': wins,
+        'D': draws,
+        'L': losses,
+        'GF': gf,
+        'GA': ga,
+        'GD': gd,
+        'Pts': pts,
+        'Pts/MP': pts_mp,
+        'GF/MP': gf_mp,
+        'GA/MP': ga_mp,
+        'WinRate': win_rate
+    }
 
 # ==========================================================
 # CAIXA DE INFORMAÇÃO
 # ==========================================================
 
 def info(titulo, mensagem):
-
-    dialog = MDDialog(
-        title=titulo,
-        text=mensagem,
-        buttons=[
-            MDFlatButton(
-                text="OK",
-                on_release=lambda x: dialog.dismiss()
-            )
-        ]
-    )
-
+    dialog = MDDialog(title=titulo, text=mensagem, buttons=[MDFlatButton(text="OK", on_release=lambda x: dialog.dismiss())])
     dialog.open()
 
 # ==========================================================
@@ -105,13 +321,18 @@ class MinhasLigas:
         self.slider_value = slider_value
         ano_atual = datetime.now().year
         self.rank_df, self.caract_df = buscar_dados_liga(league_name, ano_atual)
+
         if self.rank_df is None or self.caract_df is None:
             raise ValueError(f"Falha ao obter dados para {league_name}.")
+
         self.caract_df['Date'] = pd.to_datetime(self.caract_df['Date'], errors='coerce')
+        self.todos_jogos = self.caract_df.copy()
+
         hoje = pd.Timestamp.now().normalize()
         jogos_futuros = self.caract_df[self.caract_df['Date'].dt.normalize() >= hoje].copy()
         jogos_futuros = jogos_futuros.sort_values('Date')
         self.caract_df = jogos_futuros.reset_index(drop=True)
+
         if self.caract_df.empty:
             self.inicio = 0
             self.fim = 0
@@ -124,43 +345,52 @@ class MinhasLigas:
 # ==========================================================
 
 class Primaria:
-    def __init__(self, tabela_df, feature_df, comeco, termino):
+    def __init__(self, tabela_df, feature_df, comeco, termino, todos_jogos=None):
         self.tabela_df = tabela_df
         self.feature_df = feature_df
         self.comeco = comeco
         self.termino = termino
+        self.todos_jogos = todos_jogos if todos_jogos is not None else feature_df
 
     def principal(self):
         if modelo is None or scaler is None or model_features_info is None:
             print("Ficheiros essenciais do modelo não foram carregados.")
             return None, None, None, None, None
 
-        stats = self.tabela_df.copy()
-        if isinstance(stats.columns, pd.MultiIndex):
-            stats.columns = stats.columns.get_level_values(1)
-        stats = stats.set_index('Squad')
+        jogos_futuros = self.feature_df.iloc[self.comeco:self.termino].dropna(subset=['Home', 'Away', 'Date']).copy()
 
-        jogos_futuros = self.feature_df.iloc[self.comeco:self.termino].dropna(subset=['Home', 'Away', 'Date'])
         if jogos_futuros.empty:
             print("Não foram encontrados jogos futuros.")
             return None, None, None, None, None
 
-        valid_mask = jogos_futuros['Home'].isin(stats.index) & jogos_futuros['Away'].isin(stats.index)
-        jogos_validos = jogos_futuros[valid_mask].copy()
-        if jogos_validos.empty:
-            print("Nenhum jogo válido encontrado.")
-            return None, None, None, None, None
-
+        jogos_validos = jogos_futuros.copy()
         all_features_list = []
+
+        todos_jogos = self.todos_jogos.copy()
+        todos_jogos['Date'] = pd.to_datetime(todos_jogos['Date'], errors='coerce')
+        todos_jogos = todos_jogos.dropna(subset=['Date', 'Home', 'Away']).copy()
 
         for index, row in jogos_validos.iterrows():
             home_team = row['Home']
             away_team = row['Away']
             match_date = row['Date']
-            home_stats = stats.loc[home_team]
-            away_stats = stats.loc[away_team]
-            home_form = get_team_form(home_team, self.feature_df, match_date)
-            away_form = get_team_form(away_team, self.feature_df, match_date)
+            jogos_anteriores = todos_jogos[todos_jogos['Date'] < match_date]
+
+            home_stats = get_team_stats(home_team, jogos_anteriores)
+            away_stats = get_team_stats(away_team, jogos_anteriores)
+
+            home_away_stats = get_home_away_stats(home_team, jogos_anteriores, home=True)
+            away_away_stats = get_home_away_stats(away_team, jogos_anteriores, home=False)
+
+            home_form_5 = get_team_form(home_team, todos_jogos, match_date, window=5)
+            away_form_5 = get_team_form(away_team, todos_jogos, match_date, window=5)
+
+            home_form_10 = get_team_form(home_team, todos_jogos, match_date, window=10)
+            away_form_10 = get_team_form(away_team, todos_jogos, match_date, window=10)
+
+            home_form_15 = get_team_form(home_team, todos_jogos, match_date, window=15)
+            away_form_15 = get_team_form(away_team, todos_jogos, match_date, window=15)
+
             combined_features = {}
 
             for col, val in home_stats.items():
@@ -169,9 +399,33 @@ class Primaria:
             for col, val in away_stats.items():
                 combined_features[f"{col}_away"] = val
 
-            combined_features['form_points_diff'] = home_form['points'] - away_form['points']
-            combined_features['form_avg_gs_diff'] = home_form['avg_goals_scored'] - away_form['avg_goals_scored']
-            combined_features['form_avg_gc_diff'] = home_form['avg_goals_conceded'] - away_form['avg_goals_conceded']
+            for col, val in home_away_stats.items():
+                combined_features[f"home_{col}"] = val
+
+            for col, val in away_away_stats.items():
+                combined_features[f"away_{col}"] = val
+
+            combined_features['form5_points_diff'] = home_form_5['points'] - away_form_5['points']
+            combined_features['form5_gs_diff'] = home_form_5['avg_goals_scored'] - away_form_5['avg_goals_scored']
+            combined_features['form5_gc_diff'] = home_form_5['avg_goals_conceded'] - away_form_5['avg_goals_conceded']
+            combined_features['form5_gd_diff'] = home_form_5['goal_diff_avg'] - away_form_5['goal_diff_avg']
+            combined_features['form5_ppg_diff'] = home_form_5['points_per_game'] - away_form_5['points_per_game']
+            combined_features['form5_wins_diff'] = home_form_5['wins'] - away_form_5['wins']
+
+            combined_features['form10_points_diff'] = home_form_10['points'] - away_form_10['points']
+            combined_features['form10_gs_diff'] = home_form_10['avg_goals_scored'] - away_form_10['avg_goals_scored']
+            combined_features['form10_gc_diff'] = home_form_10['avg_goals_conceded'] - away_form_10['avg_goals_conceded']
+            combined_features['form10_gd_diff'] = home_form_10['goal_diff_avg'] - away_form_10['goal_diff_avg']
+            combined_features['form10_ppg_diff'] = home_form_10['points_per_game'] - away_form_10['points_per_game']
+            combined_features['form10_wins_diff'] = home_form_10['wins'] - away_form_10['wins']
+
+            combined_features['form15_points_diff'] = home_form_15['points'] - away_form_15['points']
+            combined_features['form15_gs_diff'] = home_form_15['avg_goals_scored'] - away_form_15['avg_goals_scored']
+            combined_features['form15_gc_diff'] = home_form_15['avg_goals_conceded'] - away_form_15['avg_goals_conceded']
+            combined_features['form15_gd_diff'] = home_form_15['goal_diff_avg'] - away_form_15['goal_diff_avg']
+            combined_features['form15_ppg_diff'] = home_form_15['points_per_game'] - away_form_15['points_per_game']
+            combined_features['form15_wins_diff'] = home_form_15['wins'] - away_form_15['wins']
+
             all_features_list.append(combined_features)
 
         X_df = pd.DataFrame(all_features_list)
