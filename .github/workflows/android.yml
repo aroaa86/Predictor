@@ -1,4 +1,3 @@
-
 name: Build Predictor Android APK
 
 on:
@@ -44,28 +43,21 @@ jobs:
           pwd
 
           echo "===== FICHEIROS OBRIGATORIOS ====="
-          test -f buildozer.spec || {
-            echo "ERRO: buildozer.spec não encontrado."
-            exit 1
-          }
-
-          test -f main.py || {
-            echo "ERRO: main.py não encontrado."
-            exit 1
-          }
-
-          test -f oraculoGui.py || {
-            echo "ERRO: oraculoGui.py não encontrado."
-            exit 1
-          }
+          for file in buildozer.spec main.py oraculoGui.py; do
+            if [ ! -f "$file" ]; then
+              echo "ERRO: $file não encontrado."
+              exit 1
+            fi
+            echo "OK: $file encontrado ($(wc -c < "$file") bytes)"
+          done
 
           echo "===== CONFIGURACAO DA APLICACAO ====="
-          grep -nE '^(title|package.name|package.domain|source.dir|requirements|android.archs|android.api|android.ndk|p4a.branch)[[:space:]]*=' buildozer.spec
+          grep -nE '^[[:space:]]*(title|package\.name|package\.domain|source\.dir|source\.include_exts|source\.exclude_exts|source\.include_patterns|source\.exclude_patterns|source\.main|requirements|android\.archs|android\.api|android\.targetapi|android\.ndk|p4a\.branch)[[:space:]]*=' buildozer.spec || true
 
           echo "===== PONTO DE ENTRADA ====="
-          head -n 30 main.py
+          sed -n '1,30p' main.py
 
-          echo "===== FICHEIROS ENCONTRADOS ====="
+          echo "===== FICHEIROS NA RAIZ ====="
           ls -la
 
       # ==========================================================
@@ -105,7 +97,9 @@ jobs:
       # 5. Configurar Java
       # ==========================================================
       - name: Configure Java 17
+        shell: bash
         run: |
+          set -eu
           echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
           echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
           "$JAVA_HOME_17_X64/bin/java" -version
@@ -128,21 +122,24 @@ jobs:
         run: |
           set -eu
 
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          echo "ANDROID_HOME=${ANDROID_HOME:-não definido}"
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-não definido}"
 
-          test -d "$ANDROID_HOME" || {
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+
+          if [ -z "$SDK" ] || [ ! -d "$SDK" ]; then
             echo "ERRO: Android SDK não encontrado."
             exit 1
-          }
+          fi
 
-          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager 2>/dev/null | head -n 1 || true)
+          SDKMANAGER=$(find "$SDK/cmdline-tools" -type f -name sdkmanager 2>/dev/null | head -n 1 || true)
 
           if [ -n "$SDKMANAGER" ]; then
             echo "SDK Manager: $SDKMANAGER"
             "$SDKMANAGER" --version
           else
             echo "Aviso: sdkmanager não encontrado nas cmdline-tools."
+            echo "O Buildozer poderá gerir as ferramentas necessárias."
           fi
 
       # ==========================================================
@@ -154,30 +151,44 @@ jobs:
           set -eu
 
           echo "===== CONFIRMAR PROJETO ====="
-          grep -q '^title = Predictor$' buildozer.spec || {
+
+          grep -qE '^[[:space:]]*title[[:space:]]*=[[:space:]]*Predictor[[:space:]]*$' buildozer.spec || {
             echo "ERRO: o título não corresponde a Predictor."
             exit 1
           }
 
-          grep -q '^package.name = predictor$' buildozer.spec || {
+          grep -qE '^[[:space:]]*package\.name[[:space:]]*=[[:space:]]*predictor[[:space:]]*$' buildozer.spec || {
             echo "ERRO: package.name não corresponde a predictor."
             exit 1
           }
 
-          # Evitar publicar um APK antigo como se fosse desta execução.
+          grep -qE '^[[:space:]]*source\.include_exts[[:space:]]*=.*(^|[,[:space:]])py([,[:space:]]|$)' buildozer.spec || {
+            echo "ERRO: source.include_exts deve incluir py."
+            exit 1
+          }
+
+          echo "===== LIMPAR APK ANTIGO ====="
           mkdir -p bin
           rm -f bin/*.apk
 
-          # Compilar a aplicação configurada neste diretório.
+          echo "===== COMPILAR APK ====="
           buildozer -v android debug
 
-          echo "===== APK GERADO ====="
+          echo "===== VERIFICAR FICHEIROS PREPARADOS ====="
+          find .buildozer -type f \( -name 'main.py' -o -name 'oraculoGui.py' \) -print 2>/dev/null || true
+
+          echo "===== VERIFICAR APK GERADO ====="
           find bin -maxdepth 1 -type f -name '*.apk' -print
 
-          test -n "$(find bin -maxdepth 1 -type f -name '*.apk' -print -quit)" || {
+          APK=$(find bin -maxdepth 1 -type f -name '*.apk' -print -quit)
+
+          if [ -z "$APK" ]; then
             echo "ERRO: não foi gerado nenhum APK."
             exit 1
-          }
+          fi
+
+          echo "APK gerado: $APK"
+          ls -lh "$APK"
 
       # ==========================================================
       # 9. Publicar o APK do Predictor
