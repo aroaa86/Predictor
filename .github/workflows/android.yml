@@ -1,4 +1,5 @@
-name: Build Android APK
+
+name: Build Predictor Android APK
 
 on:
   workflow_dispatch:
@@ -6,19 +7,70 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   build:
+    name: Construir Predictor APK
     runs-on: ubuntu-22.04
+    timeout-minutes: 60
 
     steps:
+      # ==========================================================
+      # 1. Obter o código do repositório
+      # ==========================================================
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ==========================================================
+      # 2. Preparar Python
+      # ==========================================================
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
 
+      # ==========================================================
+      # 3. Confirmar que é o projeto Predictor
+      # ==========================================================
+      - name: Verify Predictor project files
+        shell: bash
+        run: |
+          set -eu
+
+          echo "===== DIRETORIO DO PROJETO ====="
+          pwd
+
+          echo "===== FICHEIROS OBRIGATORIOS ====="
+          test -f buildozer.spec || {
+            echo "ERRO: buildozer.spec não encontrado."
+            exit 1
+          }
+
+          test -f main.py || {
+            echo "ERRO: main.py não encontrado."
+            exit 1
+          }
+
+          test -f oraculoGui.py || {
+            echo "ERRO: oraculoGui.py não encontrado."
+            exit 1
+          }
+
+          echo "===== CONFIGURACAO DA APLICACAO ====="
+          grep -nE '^(title|package.name|package.domain|source.dir|requirements|android.archs|android.api|android.ndk|p4a.branch)[[:space:]]*=' buildozer.spec
+
+          echo "===== PONTO DE ENTRADA ====="
+          head -n 30 main.py
+
+          echo "===== FICHEIROS ENCONTRADOS ====="
+          ls -la
+
+      # ==========================================================
+      # 4. Instalar dependências do sistema
+      # ==========================================================
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -42,116 +94,98 @@ jobs:
             cmake \
             ccache
 
-          echo "===== VERIFICAÇÃO DAS FERRAMENTAS ====="
+          echo "===== VERSOES ====="
           python --version
+          java -version
           autoconf --version
           automake --version
           libtool --version
-          java -version
 
-      - name: Set JAVA_HOME to Java 17
+      # ==========================================================
+      # 5. Configurar Java
+      # ==========================================================
+      - name: Configure Java 17
         run: |
-          echo "JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64" >> $GITHUB_ENV
-          export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
-          echo "Java version:"
-          $JAVA_HOME/bin/java -version
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
+          "$JAVA_HOME_17_X64/bin/java" -version
 
-      - name: Install Python dependencies
+      # ==========================================================
+      # 6. Instalar Buildozer
+      # ==========================================================
+      - name: Install Buildozer
         run: |
           python -m pip install --upgrade pip
-
-          python -m pip install \
-            "buildozer==1.5.0" \
-            "cython==0.29.37" \
-            "kivy==2.3.1" \
-            "kivymd==2.0.0" \
-            "materialyoucolor==3.0.4" \
-            "materialshapes==0.3" \
-            "asynckivy==0.6.4" \
-            "pyjnius==1.7.0" \
-            "asyncgui==0.6.3"
-
-      - name: Verify Buildozer
-        run: |
-          python --version
-          python -m pip --version
+          python -m pip install "buildozer==1.5.0" "cython==0.29.37"
           buildozer --version
           cython --version
 
-      - name: Configure Android SDK environment
+      # ==========================================================
+      # 7. Verificar Android SDK
+      # ==========================================================
+      - name: Verify Android SDK
+        shell: bash
         run: |
+          set -eu
+
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
 
-          if [ -z "$ANDROID_HOME" ]; then
-            echo "ANDROID_HOME não está definido."
+          test -d "$ANDROID_HOME" || {
+            echo "ERRO: Android SDK não encontrado."
             exit 1
+          }
+
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager 2>/dev/null | head -n 1 || true)
+
+          if [ -n "$SDKMANAGER" ]; then
+            echo "SDK Manager: $SDKMANAGER"
+            "$SDKMANAGER" --version
+          else
+            echo "Aviso: sdkmanager não encontrado nas cmdline-tools."
           fi
 
-          if [ -d "$ANDROID_HOME/cmdline-tools/latest/bin" ]; then
-            echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
-          fi
-
-          if [ -d "$ANDROID_HOME/cmdline-tools/bin" ]; then
-            echo "$ANDROID_HOME/cmdline-tools/bin" >> "$GITHUB_PATH"
-          fi
-
-          if [ -d "$ANDROID_HOME/platform-tools" ]; then
-            echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
-          fi
-
-          if [ -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
-            echo "$ANDROID_HOME/build-tools/35.0.0" >> "$GITHUB_PATH"
-          fi
-
-      - name: Locate Android SDK tools
+      # ==========================================================
+      # 8. Compilar exclusivamente o projeto Predictor
+      # ==========================================================
+      - name: Build Predictor APK
         shell: bash
         run: |
-          echo "===== PROCURANDO SDKMANAGER ====="
+          set -eu
 
-          SDKMANAGER=""
-
-          for candidate in \
-            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "$ANDROID_HOME/cmdline-tools/bin/sdkmanager" \
-            "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
-            "$ANDROID_SDK_ROOT/cmdline-tools/bin/sdkmanager"
-          do
-            if [ -f "$candidate" ]; then
-              SDKMANAGER="$candidate"
-              break
-            fi
-          done
-
-          if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager não encontrado diretamente."
-            echo "Procurando no Android SDK..."
-            SDKMANAGER=$(find "$ANDROID_HOME" -type f -name sdkmanager 2>/dev/null | head -n 1)
-          fi
-
-          if [ -z "$SDKMANAGER" ]; then
-            echo "ERRO: sdkmanager não foi encontrado."
+          echo "===== CONFIRMAR PROJETO ====="
+          grep -q '^title = Predictor$' buildozer.spec || {
+            echo "ERRO: o título não corresponde a Predictor."
             exit 1
-          fi
+          }
 
-          echo "sdkmanager encontrado:"
-          echo "$SDKMANAGER"
+          grep -q '^package.name = predictor$' buildozer.spec || {
+            echo "ERRO: package.name não corresponde a predictor."
+            exit 1
+          }
 
-          SDKMANAGER_DIR="$(dirname "$SDKMANAGER")"
-          echo "$SDKMANAGER_DIR" >> "$GITHUB_PATH"
+          # Evitar publicar um APK antigo como se fosse desta execução.
+          mkdir -p bin
+          rm -f bin/*.apk
 
-          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
-
-          "$SDKMANAGER" --version
-
-      - name: Build APK
-        shell: bash
-        run: |
+          # Compilar a aplicação configurada neste diretório.
           buildozer -v android debug
 
-      - name: Upload APK
+          echo "===== APK GERADO ====="
+          find bin -maxdepth 1 -type f -name '*.apk' -print
+
+          test -n "$(find bin -maxdepth 1 -type f -name '*.apk' -print -quit)" || {
+            echo "ERRO: não foi gerado nenhum APK."
+            exit 1
+          }
+
+      # ==========================================================
+      # 9. Publicar o APK do Predictor
+      # ==========================================================
+      - name: Upload Predictor APK
         uses: actions/upload-artifact@v4
         with:
-          name: GestorDeVoo-APK
+          name: Predictor-APK
           path: bin/*.apk
           if-no-files-found: error
+          retention-days: 14
